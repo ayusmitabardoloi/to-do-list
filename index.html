@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>To-Do List App</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <!-- Login Page -->
+    <div id="loginPage" class="page active">
+        <div class="auth-container">
+            <div class="auth-box">
+                <h1>📝 To-Do App</h1>
+                <h2>Login</h2>
+
+                <div id="loginMessage" class="message"></div>
+
+                <form id="loginForm">
+                    <div class="form-group">
+                        <label for="loginUsername">Username</label>
+                        <input type="text" id="loginUsername" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="loginPassword">Password</label>
+                        <input type="password" id="loginPassword" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Login</button>
+                </form>
+
+                <p class="auth-link">Don't have an account? <a onclick="showPage('signupPage')">Sign up</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Signup Page -->
+    <div id="signupPage" class="page">
+        <div class="auth-container">
+            <div class="auth-box">
+                <h1>📝 To-Do App</h1>
+                <h2>Create Account</h2>
+
+                <div id="signupMessage" class="message"></div>
+
+                <form id="signupForm">
+                    <div class="form-group">
+                        <label for="signupUsername">Username</label>
+                        <input type="text" id="signupUsername" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signupEmail">Email</label>
+                        <input type="email" id="signupEmail" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="signupPassword">Password</label>
+                        <input type="password" id="signupPassword" required>
+                    </div>
+
+                    <button type="submit" class="btn btn-primary">Sign Up</button>
+                </form>
+
+                <p class="auth-link">Already have an account? <a onclick="showPage('loginPage')">Login</a></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- To-Do Page -->
+    <div id="todoPage" class="page">
+        <div class="todo-container">
+            <div class="header">
+                <h1>📝 My To-Do List</h1>
+                <div class="user-info">
+                    <span id="welcomeUser">Welcome, User!</span>
+                    <button class="btn btn-secondary" onclick="logout()">Logout</button>
+                </div>
+            </div>
+
+            <div class="add-task-section">
+                <h2>Add New Task</h2>
+                <form id="addTaskForm">
+                    <div class="form-row">
+                        <input type="text" id="taskTitle" placeholder="Task title" required>
+                        <input type="text" id="taskDescription" placeholder="Description (optional)">
+                        <button type="submit" class="btn btn-primary">Add Task</button>
+                    </div>
+                </form>
+            </div>
+
+            <div class="tasks-section">
+                <h2>Your Tasks</h2>
+                <div id="tasksList" class="tasks-list">
+                    <p class="no-tasks">No tasks yet. Add your first task above!</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="close" onclick="closeEditModal()">&times;</span>
+            <h2>Edit Task</h2>
+            <form id="editTaskForm">
+                <input type="hidden" id="editTaskId">
+
+                <div class="form-group">
+                    <label for="editTitle">Title</label>
+                    <input type="text" id="editTitle" required>
+                </div>
+
+                <div class="form-group">
+                    <label for="editDescription">Description</label>
+                    <input type="text" id="editDescription">
+                </div>
+
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </form>
+        </div>
+    </div>
+
+    <script>
+        // App State
+        let currentUser = null;
+        let tasks = [];
+        let taskIdCounter = 1;
+
+        // Initialize
+        document.addEventListener('DOMContentLoaded', function() {
+            loadFromLocalStorage();
+            setupEventListeners();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('loginForm').addEventListener('submit', handleLogin);
+            document.getElementById('signupForm').addEventListener('submit', handleSignup);
+            document.getElementById('addTaskForm').addEventListener('submit', handleAddTask);
+            document.getElementById('editTaskForm').addEventListener('submit', handleEditTask);
+
+            // Close modal when clicking outside
+            window.onclick = function(event) {
+                const modal = document.getElementById('editModal');
+                if (event.target == modal) {
+                    closeEditModal();
+                }
+            }
+        }
+
+        // Page Navigation
+        function showPage(pageId) {
+            document.querySelectorAll('.page').forEach(page => {
+                page.classList.remove('active');
+            });
+            document.getElementById(pageId).classList.add('active');
+        }
+
+        // Authentication
+        function handleLogin(e) {
+            e.preventDefault();
+            const username = document.getElementById('loginUsername').value;
+            const password = document.getElementById('loginPassword').value;
+
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+            const user = users.find(u => u.username === username && u.password === password);
+
+            if (user) {
+                currentUser = user;
+                localStorage.setItem('currentUser', JSON.stringify(user));
+                showMessage('loginMessage', 'Login successful!', 'success');
+                setTimeout(() => {
+                    document.getElementById('welcomeUser').textContent = `Welcome, ${user.username}!`;
+                    loadUserTasks();
+                    showPage('todoPage');
+                }, 500);
+            } else {
+                showMessage('loginMessage', 'Invalid username or password', 'error');
+            }
+        }
+
+        function handleSignup(e) {
+            e.preventDefault();
+            const username = document.getElementById('signupUsername').value;
+            const email = document.getElementById('signupEmail').value;
+            const password = document.getElementById('signupPassword').value;
+
+            const users = JSON.parse(localStorage.getItem('users') || '[]');
+
+            if (users.find(u => u.username === username)) {
+                showMessage('signupMessage', 'Username already exists', 'error');
+                return;
+            }
+
+            if (users.find(u => u.email === email)) {
+                showMessage('signupMessage', 'Email already registered', 'error');
+                return;
+            }
+
+            const newUser = {
+                id: Date.now(),
+                username,
+                email,
+                password
+            };
+
+            users.push(newUser);
+            localStorage.setItem('users', JSON.stringify(users));
+
+            showMessage('signupMessage', 'Registration successful! Please login.', 'success');
+            setTimeout(() => {
+                document.getElementById('signupForm').reset();
+                showPage('loginPage');
+            }, 1500);
+        }
+
+        function logout() {
+            currentUser = null;
+            localStorage.removeItem('currentUser');
+            document.getElementById('loginForm').reset();
+            showPage('loginPage');
+        }
+
+        // Task Management
+        function handleAddTask(e) {
+            e.preventDefault();
+            const title = document.getElementById('taskTitle').value;
+            const description = document.getElementById('taskDescription').value;
+
+            const newTask = {
+                id: taskIdCounter++,
+                userId: currentUser.id,
+                title,
+                description,
+                completed: false,
+                createdAt: new Date().toISOString()
+            };
+
+            tasks.push(newTask);
+            saveTasksToLocalStorage();
+            renderTasks();
+
+            document.getElementById('addTaskForm').reset();
+            document.getElementById('taskTitle').focus();
+        }
+
+        function handleEditTask(e) {
+            e.preventDefault();
+            const taskId = parseInt(document.getElementById('editTaskId').value);
+            const title = document.getElementById('editTitle').value;
+            const description = document.getElementById('editDescription').value;
+
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                task.title = title;
+                task.description = description;
+                saveTasksToLocalStorage();
+                renderTasks();
+                closeEditModal();
+            }
+        }
+
+        function toggleTask(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                task.completed = !task.completed;
+                saveTasksToLocalStorage();
+                renderTasks();
+            }
+        }
+
+        function deleteTask(taskId) {
+            if (confirm('Are you sure you want to delete this task?')) {
+                tasks = tasks.filter(t => t.id !== taskId);
+                saveTasksToLocalStorage();
+                renderTasks();
+            }
+        }
+
+        function openEditModal(taskId) {
+            const task = tasks.find(t => t.id === taskId);
+            if (task) {
+                document.getElementById('editTaskId').value = task.id;
+                document.getElementById('editTitle').value = task.title;
+                document.getElementById('editDescription').value = task.description || '';
+                document.getElementById('editModal').classList.add('active');
+            }
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').classList.remove('active');
+        }
+
+        // Rendering
+        function renderTasks() {
+            const tasksList = document.getElementById('tasksList');
+            const userTasks = tasks.filter(t => t.userId === currentUser.id);
+
+            if (userTasks.length === 0) {
+                tasksList.innerHTML = '<p class="no-tasks">No tasks yet. Add your first task above!</p>';
+                return;
+            }
+
+            tasksList.innerHTML = userTasks.map(task => `
+                <div class="task-item ${task.completed ? 'completed' : ''}">
+                    <div class="task-content">
+                        <h3>${escapeHtml(task.title)}</h3>
+                        ${task.description ? `<p>${escapeHtml(task.description)}</p>` : ''}
+                    </div>
+                    <div class="task-actions">
+                        <button class="btn btn-success" onclick="toggleTask(${task.id})">
+                            ${task.completed ? 'Undo' : 'Done'}
+                        </button>
+                        <button class="btn btn-info" onclick="openEditModal(${task.id})">
+                            Edit
+                        </button>
+                        <button class="btn btn-danger" onclick="deleteTask(${task.id})">
+                            Delete
+                        </button>
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        // Local Storage
+        function saveTasksToLocalStorage() {
+            localStorage.setItem('tasks', JSON.stringify(tasks));
+        }
+
+        function loadUserTasks() {
+            tasks = JSON.parse(localStorage.getItem('tasks') || '[]');
+            if (tasks.length > 0) {
+                taskIdCounter = Math.max(...tasks.map(t => t.id)) + 1;
+            }
+            renderTasks();
+        }
+
+        function loadFromLocalStorage() {
+            const savedUser = localStorage.getItem('currentUser');
+            if (savedUser) {
+                currentUser = JSON.parse(savedUser);
+                document.getElementById('welcomeUser').textContent = `Welcome, ${currentUser.username}!`;
+                loadUserTasks();
+                showPage('todoPage');
+            }
+        }
+
+        // Utility Functions
+        function showMessage(elementId, message, type) {
+            const messageEl = document.getElementById(elementId);
+            messageEl.textContent = message;
+            messageEl.className = `message ${type}`;
+            setTimeout(() => {
+                messageEl.className = 'message';
+            }, 3000);
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+    </script>
+</body>
+</html>
